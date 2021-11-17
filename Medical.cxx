@@ -4,6 +4,8 @@
 	//VR & Data Visualization - Assignment 3: 3D Scalar Data Visualizaiton
 		//medical.cxx is the base file 
 
+	//isosurface extraction
+
 
 /*=========================================================================
 
@@ -65,6 +67,12 @@ int main(int argc, char* argv[])
 		vtkSmartPointer<vtkRenderWindow>::New();
 	renWin->AddRenderer(aRenderer);
 
+	// Set a background color for the renderer and set the size of the
+// render window (expressed in pixels).
+	aRenderer->SetBackground(.2, .3, .4);
+	renWin->SetSize(640, 480);
+
+
 	vtkSmartPointer<vtkRenderWindowInteractor> iren =
 		vtkSmartPointer<vtkRenderWindowInteractor>::New();
 	iren->SetRenderWindow(renWin);
@@ -95,83 +103,6 @@ int main(int argc, char* argv[])
 	v16->Update();
 
 
-	// An isosurface, or contour value of 500 is known to correspond to the
-	// skin of the patient. Once generated, a vtkPolyDataNormals filter is
-	// is used to create normals for smooth surface shading during rendering.
-	vtkSmartPointer<vtkContourFilter> skinExtractor =
-		vtkSmartPointer<vtkContourFilter>::New();
-	skinExtractor->SetInputConnection(v16->GetOutputPort());
-	skinExtractor->SetValue(0, 500);			
-	skinExtractor->Update();
-
-
-
-
-	//TODO Changing the below value changes which colors are displayed.
-
-	//TODO will only display this portion in this color? lower values will be redish, higher values will be bluish
-	skinExtractor->SetValue(0, 0.5); //week 7 lab 1 slide 11 //changing the value seems to change the color of the object. 
-
-
-
-
-	//TODO generate iso-surfaces for various iso-values (0.25, 0.5, and so on)
-
-
-	//TODO assignment 3 step 2: in depth analysis: 
-	  //a) Iso-surface extraction
-	  // 
-	  // 
-	  // 
-	  // 
-	  //b) probing method: 
-
-
-	  //a) 
-		  //extract iso-surfaces for different iso values by using the marching cube algorithm. 
-		  //triangulate the data using vtkPolyDataMapper
-
-
-
-	  //b) probe the temperature data at regular intervals along x,y,z. As data dimension is 18x18x10, analyze the data by taking cross sections at regular intervals from x,y,z. see pdf for example. 
-
-
-
-	//TODO step 3: Use Scale Bars and labels
-	 // use a scale bar to visualize the range of data shown in the figures, label the output
-
-
-
-	//TODO step 4: visual analysis: 
-	  //analyze and explore temperature distrubtion inside the region. Write down your own visual analysis -> export to pdf named: 3DScalarVisualization.pdf
-
-
-		// Set a background color for the renderer and set the size of the
-	// render window (expressed in pixels).
-	aRenderer->SetBackground(.2, .3, .4);
-	renWin->SetSize(640, 480);
-
-
-
-
-
-
-
-	vtkSmartPointer<vtkPolyDataNormals> skinNormals =
-		vtkSmartPointer<vtkPolyDataNormals>::New();
-	skinNormals->SetInputConnection(skinExtractor->GetOutputPort());
-	skinNormals->SetFeatureAngle(60.0);
-
-	vtkSmartPointer<vtkPolyDataMapper> skinMapper =
-		vtkSmartPointer<vtkPolyDataMapper>::New();
-	skinMapper->SetInputConnection(skinNormals->GetOutputPort());
-
-	//skinMapper->ScalarVisibilityOff(); //Mark - commented out per week 7 lab 1 slide 12     //should allow us to see color now
-
-	vtkSmartPointer<vtkActor> skin =
-		vtkSmartPointer<vtkActor>::New();
-	skin->SetMapper(skinMapper);
-
 	// An outline provides context around the data.
 	//
 	vtkSmartPointer<vtkOutlineFilter> outlineData =
@@ -186,6 +117,187 @@ int main(int argc, char* argv[])
 		vtkSmartPointer<vtkActor>::New();
 	outline->SetMapper(mapOutline);
 	outline->GetProperty()->SetColor(0, 0, 0);
+
+	// Now create a lookup table that consists of the full hue circle
+// (from HSV).
+	vtkSmartPointer<vtkLookupTable> hueLut =
+		vtkSmartPointer<vtkLookupTable>::New();
+	hueLut->SetTableRange(0, 1);
+	hueLut->SetHueRange(0.0, 0.667);	
+	hueLut->SetSaturationRange(1.0, 1.0);
+	hueLut->SetValueRange(1, 1);
+	hueLut->Build(); //effective built
+
+	// An isosurface, or contour value of 500 is known to correspond to the
+	// skin of the patient. Once generated, a vtkPolyDataNormals filter is
+	// is used to create normals for smooth surface shading during rendering.
+	vtkSmartPointer<vtkContourFilter> skinExtractor =
+		vtkSmartPointer<vtkContourFilter>::New();
+	skinExtractor->SetInputConnection(v16->GetOutputPort());		
+	skinExtractor->Update();
+
+	//TODO Changing the below value changes which colors are displayed 1 at a time.
+
+	//skinExtractor->SetValue(0, 0.1);
+	//skinExtractor->SetValue(0, 0.2);
+	//skinExtractor->SetValue(0, 0.3);
+	//skinExtractor->SetValue(0, 0.5);
+	skinExtractor->SetValue(0, 0.75); //week 7 lab 1 slide 11 //changing the value seems to change the color of the object. 
+
+
+
+
+
+
+
+	vtkSmartPointer<vtkPolyDataNormals> skinNormals =
+		vtkSmartPointer<vtkPolyDataNormals>::New();
+	skinNormals->SetInputConnection(skinExtractor->GetOutputPort());
+	skinNormals->SetFeatureAngle(60.0);
+
+	vtkSmartPointer<vtkStripper> skinStripper =
+		vtkSmartPointer<vtkStripper>::New();
+	skinStripper->SetInputConnection(skinNormals->GetOutputPort());
+	skinStripper->Update();
+
+
+
+	vtkSmartPointer<vtkPolyDataMapper> skinMapper =				//triangulates the data
+		vtkSmartPointer<vtkPolyDataMapper>::New();
+	skinMapper->SetInputConnection(skinNormals->GetOutputPort());
+
+	//skinMapper->ScalarVisibilityOff(); //Mark - commented out per week 7 lab 1 slide 12     //should allow us to see color now
+
+
+	skinMapper->SetInputConnection(skinStripper->GetOutputPort());
+	skinMapper->SetLookupTable(hueLut);
+	skinMapper->UseLookupTableScalarRangeOn();
+	skinMapper->Update();
+
+
+	vtkSmartPointer<vtkActor> skin =
+		vtkSmartPointer<vtkActor>::New();
+	skin->SetMapper(skinMapper);
+
+
+	
+	//END ISOSURFACE
+
+
+	//2b) probing method is below. 
+
+
+	
+	// Create the first  plane. The filter vtkImageMapToColors
+	// maps the data through the corresponding lookup table created above.  The
+	// vtkImageActor is a type of vtkProp and conveniently displays an image on
+	// a single quadrilateral plane. It does this using texture mapping and as
+	// a result is quite fast. (Note: the input image has to be unsigned char
+	// values, which the vtkImageMapToColors produces.) Note also that by
+	// specifying the DisplayExtent, the pipeline requests data of this extent
+	// and the vtkImageMapToColors only processes a slice of data.
+
+
+	//PROBING: for any of the probing methods, uncomment the 4 methods below relating to colors, sagittal, axial, and coronal methods.
+
+
+
+	vtkSmartPointer<vtkImageMapToColors> colors = vtkSmartPointer<vtkImageMapToColors>::New();
+	colors->SetInputConnection(v16->GetOutputPort());
+	colors->SetLookupTable(hueLut);
+	colors->Update();
+
+	//18x18x10: 
+	//FOR EACH OF THE BELOW, UNCOMMENT THE SEGMENTS YOU WOULD LIKE DISPLAYED.
+
+
+	vtkSmartPointer<vtkImageActor> sagittal = vtkSmartPointer<vtkImageActor>::New();
+	sagittal->GetMapper()->SetInputConnection(colors->GetOutputPort());
+	//	sagittal->SetDisplayExtent(0,0, 0,17, 0,9); //only 9, 0-17, 0-9
+		sagittal->SetDisplayExtent(4,4, 0,17, 0,9); //only 9, 0-17, 0-9
+	//sagittal->SetDisplayExtent(9, 9, 0, 17, 0, 9); //only 9, 0-17, 0-9
+	//	sagittal->SetDisplayExtent(13,13, 0,17, 0,9); //only 9, 0-17, 0-9
+	//sagittal->SetDisplayExtent(17, 17, 0, 17, 0, 9); //only 9, 0-17, 0-9
+
+	vtkSmartPointer<vtkImageActor> axial = vtkSmartPointer<vtkImageActor>::New();
+	axial->GetMapper()->SetInputConnection(colors->GetOutputPort());
+	//axial->SetDisplayExtent(0,17, 0,0, 0,9);//0-18, only 9 , 0-9 
+	axial->SetDisplayExtent(0,17, 4,4, 0,9);//0-18, only 9 , 0-9 
+	//axial->SetDisplayExtent(0,17, 9,9, 0,9);//0-18, only 9 , 0-9 
+	//axial->SetDisplayExtent(0,17, 13,13, 0,9);//0-18, only 9 , 0-9 
+	//axial->SetDisplayExtent(0,17, 17,17, 0,9);//0-18, only 9 , 0-9 
+
+
+
+	vtkSmartPointer<vtkImageActor> coronal = vtkSmartPointer<vtkImageActor>::New();
+	coronal->GetMapper()->SetInputConnection(colors->GetOutputPort());
+	//coronal->SetDisplayExtent(0,17, 0,17, 0,0);	 
+	coronal->SetDisplayExtent(0,17, 0,17, 3,3);	
+	//coronal->SetDisplayExtent(0,17, 0,17, 6,6);	
+	//coronal->SetDisplayExtent(0,17, 0,17, 9,9);	
+
+
+
+
+	//END PROBING
+
+	// Setup the text and add it to the renderer	//added per assignment 3 step 3: scale bars and labels
+	vtkSmartPointer<vtkTextActor> textActor = vtkSmartPointer<vtkTextActor>::New();
+	textActor->SetInput("Iso-Surfaces and Probing for temperature variation:");	//title
+	textActor->SetPosition(200, 40);						//location in the program from the bottom left corner
+	textActor->GetTextProperty()->SetFontSize(24);			//font size
+	textActor->GetTextProperty()->SetColor(1.0, 1.0, 1.0);	//color of text
+
+	//
+	////adding axes - assignment 3 part 3 
+	vtkSmartPointer<vtkAxesActor> axes = vtkSmartPointer<vtkAxesActor>::New();
+
+	//x axis
+	axes->GetXAxisCaptionActor2D()->GetTextActor()->SetTextScaleModeToNone();
+	axes->GetXAxisCaptionActor2D()->GetCaptionTextProperty()->SetColor(1, 0, 0);	
+	axes->SetXAxisLabelText("X");
+	axes->GetXAxisCaptionActor2D()->GetCaptionTextProperty()->SetFontSize(15);
+
+	//y axis
+	axes->GetYAxisCaptionActor2D()->GetTextActor()->SetTextScaleModeToNone();
+	axes->GetYAxisCaptionActor2D()->GetCaptionTextProperty()->SetColor(1, 0, 0);
+	axes->SetYAxisLabelText("Y");
+	axes->GetYAxisCaptionActor2D()->GetCaptionTextProperty()->SetFontSize(15);
+
+	//z axis
+	axes->GetZAxisCaptionActor2D()->GetTextActor()->SetTextScaleModeToNone();
+	axes->GetZAxisCaptionActor2D()->GetCaptionTextProperty()->SetColor(1, 0, 0);
+	axes->SetZAxisLabelText("Z");
+	axes->GetZAxisCaptionActor2D()->GetCaptionTextProperty()->SetFontSize(15);
+	
+	
+	axes->SetTotalLength(5.0, 5.0, 5.0);	//setting the length of the x, y, z axes
+
+
+	//scalar bar added to scene: 
+	vtkSmartPointer<vtkScalarBarActor> scalarBar = vtkSmartPointer<vtkScalarBarActor>::New();
+
+	scalarBar->UnconstrainedFontSizeOn();
+	scalarBar->SetTitle("Temperature"); //scalar bar label
+	scalarBar->SetNumberOfLabels(5);	//number of labels displayed on the scalar bar
+
+	scalarBar->SetLookupTable(hueLut);
+	scalarBar->GetPositionCoordinate()->SetValue(.125, .125);
+
+	scalarBar->SetWidth(0.125);	//bar width
+	scalarBar->SetHeight(0.75);	//bar heigth
+
+
+
+
+	
+
+	// Now we are creating three orthogonal planes passing through the
+	// volume. Each plane uses a different texture map and therefore has
+	// different coloration.
+
+
+
 
 	// It is convenient to create an initial view of the data. The FocalPoint
 	// and Position form a vector direction. Later on (ResetCamera() method)
@@ -203,9 +315,28 @@ int main(int argc, char* argv[])
 	// Actors are added to the renderer. An initial camera view is created.
 	// The Dolly() method moves the camera towards the FocalPoint,
 	// thereby enlarging the image.
+	
 	aRenderer->AddActor(outline);
-	aRenderer->AddActor(skin);
+	
+	
+	//ISO-SURFACE uncomment the below line along with any of the skin methods
+	aRenderer->AddActor(skin); //uncomment for isosurface display
+
+
+	//PROBING: have the below 3 lines uncommented, along with the colors and sagittal, axial, and coronal methods
+	aRenderer->AddActor(sagittal);
+	aRenderer->AddActor(axial);
+	aRenderer->AddActor(coronal);
+
+
+	//labels and titles and annotations
+	aRenderer->AddActor(textActor);
+	aRenderer->AddActor(axes);
+	aRenderer->AddActor(scalarBar);
+
+	
 	aRenderer->SetActiveCamera(aCamera);
+
 	aRenderer->ResetCamera();
 	aCamera->Dolly(1.0); //changed per week 7 lab 1 slide 15
 
